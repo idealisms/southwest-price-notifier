@@ -46,8 +46,9 @@ export function formatPriceDropEmail(drops) {
   const body = drops
     .map((d) => {
       const saved = d.pointsPaid - d.cheapestPoints;
+      const routeLines = d.legs.map((leg) => `${leg.origin} -> ${leg.destination} (${leg.date})`).join("\n  ");
       return [
-        `${d.origin} -> ${d.destination} (${d.date})`,
+        routeLines,
         `  Paid: ${d.pointsPaid.toLocaleString()} pts | Now: ${d.cheapestPoints.toLocaleString()} pts | Save: ${saved.toLocaleString()} pts`,
       ].join("\n");
     })

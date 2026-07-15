@@ -40,5 +40,21 @@ export function loadFlights() {
     }
   }
 
+  // Legs sharing a `group` are booked (and must be canceled) together, so
+  // they need to agree on the combined points_paid and threshold — see
+  // groupFlights() in index.js, which sums cheapest fares across the group
+  // and compares against this shared points_paid.
+  const groups = new Map();
+  for (const flight of flights) {
+    if (!flight.group) continue;
+    if (!groups.has(flight.group)) groups.set(flight.group, flight);
+    const first = groups.get(flight.group);
+    if (first.points_paid !== flight.points_paid || first.notify_threshold_points !== flight.notify_threshold_points) {
+      throw new Error(
+        `Flights in group "${flight.group}" must share the same points_paid and notify_threshold_points (mismatch between "${first.id}" and "${flight.id}")`,
+      );
+    }
+  }
+
   return flights;
 }

@@ -37,11 +37,36 @@ cancel-and-rebook is worth it.
     "date": "2026-08-15",
     "points_paid": 12500,
     "notify_threshold_points": 500
+  },
+  {
+    "id": "lax-sea-0901",
+    "group": "lax-sea-rt-0901-0905",
+    "origin": "LAX",
+    "destination": "SEA",
+    "date": "2026-09-01",
+    "points_paid": 24000,
+    "notify_threshold_points": 500
+  },
+  {
+    "id": "sea-lax-0905",
+    "group": "lax-sea-rt-0901-0905",
+    "origin": "SEA",
+    "destination": "LAX",
+    "date": "2026-09-05",
+    "points_paid": 24000,
+    "notify_threshold_points": 500
   }
 ]
 ```
 - `notify_threshold_points`: minimum points drop to bother alerting on (avoid
   noise from trivial fluctuations)
+- `group` (optional): links legs that were booked — and must be canceled —
+  together, e.g. the two legs of a round trip. Southwest search is one-way
+  only, so each leg is still scraped separately, but grouped legs' cheapest
+  fares are *summed* and compared against a shared `points_paid` (which must
+  be identical across all legs in the group — it's the combined cost of the
+  whole booking, not a per-leg amount). One alert fires per group, not per
+  leg. Omit `group` for flights booked and cancelable as standalone one-ways.
 
 ## Scraper logic
 1. Launch stealth-patched Chromium, load persisted cookie/session state if present

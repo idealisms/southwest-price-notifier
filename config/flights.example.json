@@ -6,5 +6,23 @@
     "date": "2026-08-15",
     "points_paid": 12500,
     "notify_threshold_points": 500
+  },
+  {
+    "id": "lax-sea-0901",
+    "group": "lax-sea-rt-0901-0905",
+    "origin": "LAX",
+    "destination": "SEA",
+    "date": "2026-09-01",
+    "points_paid": 24000,
+    "notify_threshold_points": 500
+  },
+  {
+    "id": "sea-lax-0905",
+    "group": "lax-sea-rt-0901-0905",
+    "origin": "SEA",
+    "destination": "LAX",
+    "date": "2026-09-05",
+    "points_paid": 24000,
+    "notify_threshold_points": 500
   }
 ]
