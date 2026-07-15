@@ -1,7 +1,7 @@
 import { loadFlights } from "./config.js";
 import { openDb, recordPriceCheck } from "./db.js";
 import { checkFlightPrice } from "./scraper.js";
-import { sendPriceDropEmail, formatPriceDropEmail } from "./email.js";
+import { sendEmail, formatPriceDropEmail, formatErrorEmail } from "./email.js";
 
 const NOTIFY_TO = process.env.NOTIFY_EMAIL;
 
@@ -22,6 +22,7 @@ async function main() {
   const flights = loadFlights();
   const db = openDb();
   const results = new Map(); // flight.id -> { cheapestPoints, fareBucket }
+  const errors = [];
 
   for (const flight of flights) {
     try {
@@ -35,6 +36,7 @@ async function main() {
       console.log(`${flight.id}: cheapest now ${result.cheapestPoints} pts (${result.fareBucket})`);
     } catch (err) {
       console.error(`Failed to check ${flight.id}:`, err.message);
+      errors.push({ flightId: flight.id, message: err.message });
     }
   }
 
@@ -64,17 +66,38 @@ async function main() {
       console.error("Price drops found but NOTIFY_EMAIL is not set — skipping email.");
     } else {
       const { subject, body } = formatPriceDropEmail(drops);
-      await sendPriceDropEmail({ to: NOTIFY_TO, subject, body });
+      await sendEmail({ to: NOTIFY_TO, subject, body });
       console.log(`Sent alert email to ${NOTIFY_TO}: ${subject}`);
     }
   } else {
     console.log("No price drops above threshold.");
   }
 
+  if (errors.length > 0) {
+    if (!NOTIFY_TO) {
+      console.error(`${errors.length} flight(s) failed to check but NOTIFY_EMAIL is not set — skipping error email.`);
+    } else {
+      const { subject, body } = formatErrorEmail(errors);
+      await sendEmail({ to: NOTIFY_TO, subject, body });
+      console.log(`Sent error alert email to ${NOTIFY_TO}: ${subject}`);
+    }
+  }
+
   db.close();
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  if (NOTIFY_TO) {
+    try {
+      await sendEmail({
+        to: NOTIFY_TO,
+        subject: "Southwest tracker error: run failed",
+        body: `The tracker crashed before finishing:\n\n${err.stack ?? err.message}`,
+      });
+    } catch (emailErr) {
+      console.error("Also failed to send crash alert email:", emailErr.message);
+    }
+  }
   process.exit(1);
 });

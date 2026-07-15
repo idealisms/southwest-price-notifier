@@ -30,7 +30,7 @@ function buildRawMessage({ to, subject, body }) {
   return Buffer.from(message).toString("base64url");
 }
 
-export async function sendPriceDropEmail({ to, subject, body }) {
+export async function sendEmail({ to, subject, body }) {
   const gmail = getGmailClient();
   const raw = buildRawMessage({ to, subject, body });
   await gmail.users.messages.send({
@@ -54,5 +54,11 @@ export function formatPriceDropEmail(drops) {
     })
     .join("\n\n");
 
+  return { subject, body };
+}
+
+export function formatErrorEmail(errors) {
+  const subject = `Southwest tracker error: ${errors.length} flight(s) failed to check`;
+  const body = errors.map((e) => `${e.flightId}: ${e.message}`).join("\n\n");
   return { subject, body };
 }
