@@ -1,0 +1,21 @@
+{
+  "name": "southwest-price-notifier",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tracks points prices for already-booked Southwest flights and emails an alert when the cheapest fare bucket drops.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "login": "node src/login.js"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "googleapis": "^140.0.1",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

@@ -1,0 +1,17 @@
+node_modules/
+
+# secrets / auth state — never commit
+token.json
+credentials.json
+storage-state.json
+
+# real flight config contains confirmation numbers — keep only the example
+config/flights.json
+
+# local data
+data/*.db
+data/*.db-journal
+*.log
+
+# OS
+.DS_Store

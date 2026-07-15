@@ -1,0 +1,11 @@
+[
+  {
+    "id": "atl-den-0815",
+    "origin": "ATL",
+    "destination": "DEN",
+    "date": "2026-08-15",
+    "points_paid": 12500,
+    "confirmation_number": "ABC123",
+    "notify_threshold_points": 500
+  }
+]
