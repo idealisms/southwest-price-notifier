@@ -25,19 +25,31 @@ async function main() {
   const errors = [];
 
   for (const flight of flights) {
+    let result;
     try {
-      const result = await checkFlightPrice(flight);
-      results.set(flight.id, result);
-      recordPriceCheck(db, {
-        flightId: flight.id,
-        cheapestPoints: result.cheapestPoints,
-        fareBucket: result.fareBucket,
-      });
-      console.log(`${flight.id}: cheapest now ${result.cheapestPoints} pts (${result.fareBucket})`);
+      result = await checkFlightPrice(flight);
     } catch (err) {
-      console.error(`Failed to check ${flight.id}:`, err.message);
-      errors.push({ flightId: flight.id, message: err.message });
+      // One retry absorbs transient timeouts (slow page load, brief resource
+      // contention from back-to-back browser launches) without masking a
+      // persistent block or a stale selector, which will fail again below.
+      console.error(`Failed to check ${flight.id}, retrying once:`, err.message);
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      try {
+        result = await checkFlightPrice(flight);
+      } catch (retryErr) {
+        console.error(`Retry failed for ${flight.id}:`, retryErr.message);
+        errors.push({ flightId: flight.id, message: retryErr.message });
+        continue;
+      }
     }
+
+    results.set(flight.id, result);
+    recordPriceCheck(db, {
+      flightId: flight.id,
+      cheapestPoints: result.cheapestPoints,
+      fareBucket: result.fareBucket,
+    });
+    console.log(`${flight.id}: cheapest now ${result.cheapestPoints} pts (${result.fareBucket})`);
   }
 
   const drops = [];
