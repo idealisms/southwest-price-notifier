@@ -45,9 +45,14 @@ cancel-and-rebook is worth it.
 
 ## Scraper logic
 1. Launch stealth-patched Chromium, load persisted cookie/session state if present
-2. Navigate to Southwest one-way search for origin/destination/date, points fare toggle
-3. Parse all fare buckets returned (Wanna Get Away, WGA+, Anytime, Business Select)
-   and take the lowest points price shown — this is "cheapest available," not
+2. Deep-link to Southwest's one-way search with origin/destination/date and
+   `fareType=POINTS` pre-filled (see "Resolved open questions" below), then
+   click "Search flights" to actually submit — the deep link only pre-fills
+   the form, it doesn't auto-search
+3. Parse all fare buckets returned (currently Basic, Choice, Choice Preferred,
+   Choice Extra — Southwest's bucket names as of 2026-07, superseding the
+   older Wanna Get Away/Anytime/Business Select naming assumed earlier) and
+   take the lowest points price shown — this is "cheapest available," not
    necessarily the same bucket originally booked, since any bucket is
    points-refundable
 4. Save result + timestamp to price history store
@@ -82,8 +87,19 @@ ATL -> DEN (Aug 15)
 - Automatic rebooking (manual click-through only, by design — avoid
   accidentally rebooking into a worse seat/fare like the Junova complaint)
 
-## Open questions for Claude Code to flag if unclear
-- Exact DOM structure of Southwest's points fare search results (will need
-  live inspection — selectors will likely need iteration)
-- Whether Southwest's search URL can be deep-linked with query params to skip
-  UI interaction (worth checking before committing to full page-object clicks)
+## Resolved open questions (live-verified 2026-07-14)
+- **DOM structure**: no stable CSS classes (homepage/form is CSS-modules with
+  hashed class names), but the fare results grid renders plain, un-hashed
+  markup. Each fare cell is a `<button>` with a parseable
+  `aria-label="<Bucket> fare <N>,NNN PTS. ..."` — matched in `src/scraper.js`
+  via `FARE_LABEL_PATTERN`. Unavailable fares don't match the pattern and are
+  naturally skipped. `data-test="fare-button--basic|choice|choice-preferred|choice-extra"`
+  wrapper divs also exist if bucket-specific selection is ever needed.
+- **Deep-linking**: yes, via `/air/booking/select-depart.html` with query
+  params (`originationAirportCode`, `destinationAirportCode`, `departureDate`,
+  `tripType=oneway`, `fareType=POINTS`, plus several required-but-inert params
+  — see `buildSearchUrl` in `src/scraper.js`). However the deep link only
+  **pre-fills** the booking form; it does not auto-submit. The scraper still
+  has to click "Search flights" after navigating, so full UI-interaction
+  isn't avoided, just reduced (no typing into airport autocomplete, which was
+  flaky in testing).

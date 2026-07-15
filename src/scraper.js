@@ -24,20 +24,29 @@ function randomViewport() {
 }
 
 function buildSearchUrl({ origin, destination, date }) {
-  // TODO(open question, see PLAN.md): confirm whether Southwest's search
-  // results page can be deep-linked with query params (origin/destination/date/
-  // points-fare toggle) to skip UI interaction entirely. This URL shape is a
-  // best guess and needs live verification.
+  // Deep-linking pre-fills the booking form but does not auto-submit the
+  // search — see checkFlightPrice, which still has to click "Search flights".
   const params = new URLSearchParams({
+    adultsCount: "1",
+    adultPassengersCount: "1",
     originationAirportCode: origin,
     destinationAirportCode: destination,
     departureDate: date,
+    departureTimeOfDay: "ALL_DAY",
+    returnDate: "",
+    returnTimeOfDay: "ALL_DAY",
     tripType: "oneway",
-    adultPassengersCount: "1",
     fareType: "POINTS",
+    passengerType: "ADULT",
+    promoCode: "",
   });
-  return `https://www.southwest.com/air/booking/select.html?${params.toString()}`;
+  return `https://www.southwest.com/air/booking/select-depart.html?${params.toString()}`;
 }
+
+// Fare buttons render an aria-label like "Choice fare 12,500 PTS. Additional
+// taxes and fees of dollars 5.60 will be added. ...". Unavailable fares don't
+// match this pattern, so they're naturally excluded.
+const FARE_LABEL_PATTERN = /^(.+?) fare ([\d,]+) PTS/;
 
 /**
  * Checks the cheapest available points price for a single flight.
@@ -55,24 +64,41 @@ export async function checkFlightPrice(flight) {
     await page.goto(buildSearchUrl(flight), { waitUntil: "domcontentloaded" });
     await randomDelay();
 
-    // TODO(open question, see PLAN.md): Southwest's fare-bucket DOM structure
-    // needs live inspection. This selector is a placeholder — iterate against
-    // the real results page before relying on this.
-    const fareBuckets = await page.$$eval(
-      "[data-test='fare-button'] .fare-button--price-text",
-      (nodes) =>
-        nodes
-          .map((el) => parseInt(el.textContent.replace(/[^0-9]/g, ""), 10))
-          .filter((n) => !Number.isNaN(n)),
-    );
+    try {
+      await page.getByRole("button", { name: /dismiss/i }).click({ timeout: 3000 });
+    } catch {
+      // no cookie banner shown
+    }
 
-    if (fareBuckets.length === 0) {
+    try {
+      // Clicking this button navigates immediately, which can race Playwright's
+      // post-click stability check and throw even though the click succeeded —
+      // the waitForSelector below is the real success signal, not this click.
+      await page.getByRole("button", { name: /search flights/i }).click({ timeout: 10000 });
+    } catch {
+      // ignored — see comment above
+    }
+    await page.waitForSelector("button[aria-label*=' PTS.']", { timeout: 20000 });
+    await randomDelay();
+
+    const fares = await page.$$eval("button[aria-label*=' PTS.']", (nodes, patternSrc) => {
+      const pattern = new RegExp(patternSrc);
+      return nodes
+        .map((el) => {
+          const match = (el.getAttribute("aria-label") || "").match(pattern);
+          if (!match) return null;
+          return { bucket: match[1], points: parseInt(match[2].replace(/,/g, ""), 10) };
+        })
+        .filter(Boolean);
+    }, FARE_LABEL_PATTERN.source);
+
+    if (fares.length === 0) {
       throw new Error(`No fare buckets found for flight ${flight.id} — selectors likely stale`);
     }
 
-    const cheapestPoints = Math.min(...fareBuckets);
+    const cheapest = fares.reduce((min, f) => (f.points < min.points ? f : min));
 
-    return { cheapestPoints, fareBucket: null };
+    return { cheapestPoints: cheapest.points, fareBucket: cheapest.bucket };
   } finally {
     await randomDelay();
     await context.storageState({ path: STORAGE_STATE_PATH });
