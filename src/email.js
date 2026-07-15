@@ -5,15 +5,20 @@ import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TOKEN_PATH = path.join(__dirname, "..", "token.json");
-const CREDENTIALS_PATH = path.join(__dirname, "..", "credentials.json");
 
+// token.json is a self-contained Python google-auth Credentials dump (token,
+// refresh_token, client_id/secret, token_uri all in one file) rather than the
+// split credentials.json + token.json shape from the Node googleapis
+// quickstart — no separate credentials.json needed.
 function getGmailClient() {
-  const credentials = JSON.parse(readFileSync(CREDENTIALS_PATH, "utf-8"));
   const token = JSON.parse(readFileSync(TOKEN_PATH, "utf-8"));
-  const { client_secret, client_id, redirect_uris } = credentials.installed ?? credentials.web;
 
-  const oAuth2Client = new google.auth.OAuth2(client_id, client_secret, redirect_uris[0]);
-  oAuth2Client.setCredentials(token);
+  const oAuth2Client = new google.auth.OAuth2(token.client_id, token.client_secret);
+  oAuth2Client.setCredentials({
+    access_token: token.token,
+    refresh_token: token.refresh_token,
+    expiry_date: new Date(token.expiry).getTime(),
+  });
 
   return google.gmail({ version: "v1", auth: oAuth2Client });
 }
