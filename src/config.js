@@ -11,7 +11,6 @@ const REQUIRED_FIELDS = [
   "destination",
   "date",
   "points_paid",
-  "confirmation_number",
   "notify_threshold_points",
 ];
 

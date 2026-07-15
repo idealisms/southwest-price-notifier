@@ -33,7 +33,6 @@ async function main() {
         origin: flight.origin,
         destination: flight.destination,
         date: flight.date,
-        confirmationNumber: flight.confirmation_number,
         pointsPaid: flight.points_paid,
         cheapestPoints: result.cheapestPoints,
       });

@@ -42,7 +42,7 @@ export function formatPriceDropEmail(drops) {
     .map((d) => {
       const saved = d.pointsPaid - d.cheapestPoints;
       return [
-        `${d.origin} -> ${d.destination} (${d.date}, conf ${d.confirmationNumber})`,
+        `${d.origin} -> ${d.destination} (${d.date})`,
         `  Paid: ${d.pointsPaid.toLocaleString()} pts | Now: ${d.cheapestPoints.toLocaleString()} pts | Save: ${saved.toLocaleString()} pts`,
       ].join("\n");
     })

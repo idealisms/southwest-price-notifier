@@ -36,7 +36,6 @@ cancel-and-rebook is worth it.
     "destination": "DEN",
     "date": "2026-08-15",
     "points_paid": 12500,
-    "confirmation_number": "ABC123",
     "notify_threshold_points": 500
   }
 ]
@@ -69,7 +68,7 @@ Plain text, one email per run (batched, not per-flight) if any flights dropped:
 ```
 Subject: Southwest price drop: 2,700 pts
 
-ATL -> DEN (Aug 15, conf ABC123)
+ATL -> DEN (Aug 15)
   Paid: 12,500 pts | Now: 9,800 pts | Save: 2,700 pts
   Rebook: [southwest.com link if easily constructible]
 

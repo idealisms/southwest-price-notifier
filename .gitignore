@@ -5,7 +5,7 @@ token.json
 credentials.json
 storage-state.json
 
-# real flight config contains confirmation numbers — keep only the example
+# real flight config is personal (routes/dates) — keep only the example
 config/flights.json
 
 # local data
