@@ -30,10 +30,62 @@ manually, and save the session to `storage-state.json` (not committed).
 NOTIFY_EMAIL=you@example.com npm start
 ```
 
-Intended to be invoked once daily from system cron at a randomized time
-within a window (e.g. 09:00–13:00 local).
+Intended to be invoked periodically (e.g. once or twice a day).
+
+## Run with Docker
+
+The `Dockerfile` uses Microsoft's official Playwright image so the bundled
+Chromium always matches the pinned `playwright` version — this matters on
+arm64 hosts (e.g. a Raspberry Pi), where Playwright's own browser download
+can otherwise mismatch the architecture. It's a multi-stage build: a
+`builder` stage compiles `better-sqlite3`'s native module (needs
+python3/make/g++), and only the finished `node_modules` gets copied into the
+clean runtime stage — see the comment in the Dockerfile for why the build
+tools can't just be removed from a single-stage image afterwards.
+
+Build:
+
+```
+docker build -t southwest-price-notifier .
+```
+
+`config/`, `data/` (the sqlite price-history db), `storage-state.json`, and
+`token.json` all need to persist across container runs/restarts, so mount
+them from the host rather than baking them into the image:
+
+```
+docker run -d --restart unless-stopped \
+  -v /path/to/repo/config:/app/config \
+  -v /path/to/repo/data:/app/data \
+  -v /path/to/repo/storage-state.json:/app/storage-state.json \
+  -v /path/to/repo/token.json:/app/token.json \
+  -e NOTIFY_EMAIL=you@example.com \
+  --name southwest-price-notifier-loop \
+  --entrypoint /bin/sh \
+  southwest-price-notifier \
+  -c 'while true; do node src/index.js; sleep 43200; done'
+```
+
+(`sleep 43200` = 12 hours; adjust to taste. `src/` and `node_modules` are
+baked into the image rather than mounted, so a code change requires a rebuild
+— see "Updating" below.)
+
+### Updating
+
+Since `src/` is baked into the image, picking up a code change (e.g. a
+scraper selector fix after Southwest tweaks their site) means rebuilding and
+restarting:
+
+```
+git pull
+docker build -t southwest-price-notifier .
+docker restart southwest-price-notifier-loop
+```
+
+No changes needed for `config/flights.json` edits — that's bind-mounted, so
+those take effect on the next container restart without a rebuild.
 
 ## Status
 
-Scraper and Gmail auth have both been verified against the live site/API.
-Not yet run as a full end-to-end cron job on the Pi.
+Scraper and Gmail auth have both been verified against the live site/API,
+including a full end-to-end run in Docker on a Raspberry Pi.

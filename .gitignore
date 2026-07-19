@@ -13,5 +13,8 @@ data/*.db
 data/*.db-journal
 *.log
 
+# personal deployment details (hostnames/IPs, host paths)
+DEPLOY-NOTES.md
+
 # OS
 .DS_Store
