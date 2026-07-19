@@ -81,16 +81,42 @@ export async function checkFlightPrice(flight) {
     await page.waitForSelector("button[aria-label*=' PTS.']", { timeout: 20000 });
     await randomDelay();
 
-    const fares = await page.$$eval("button[aria-label*=' PTS.']", (nodes, patternSrc) => {
-      const pattern = new RegExp(patternSrc);
-      return nodes
-        .map((el) => {
-          const match = (el.getAttribute("aria-label") || "").match(pattern);
-          if (!match) return null;
-          return { bucket: match[1], points: parseInt(match[2].replace(/,/g, ""), 10) };
-        })
-        .filter(Boolean);
-    }, FARE_LABEL_PATTERN.source);
+    // Each departure has its own row with its own fare buttons, so fares must
+    // be scoped per-row — grabbing all buttons on the page mixes fares from
+    // unrelated flight times together.
+    const rows = await page.$$eval(
+      "li.air-booking-select-detail",
+      (nodes, patternSrc) => {
+        const pattern = new RegExp(patternSrc);
+        return nodes.map((row) => {
+          const timeMatch = (row.textContent || "").match(/Departs\s*(\d{1,2}:\d{2})\s*(AM|PM)/i);
+          const time = timeMatch ? `${timeMatch[1]} ${timeMatch[2].toUpperCase()}` : null;
+          const fares = Array.from(row.querySelectorAll("button[aria-label*=' PTS.']"))
+            .map((el) => {
+              const match = (el.getAttribute("aria-label") || "").match(pattern);
+              if (!match) return null;
+              return { bucket: match[1], points: parseInt(match[2].replace(/,/g, ""), 10) };
+            })
+            .filter(Boolean);
+          return { time, fares };
+        });
+      },
+      FARE_LABEL_PATTERN.source,
+    );
+
+    let fares;
+    if (flight.flight_time) {
+      const row = rows.find((r) => r.time === flight.flight_time);
+      if (!row) {
+        const available = rows.map((r) => r.time).join(", ");
+        throw new Error(
+          `No flight departing at ${flight.flight_time} found for ${flight.id} (available: ${available})`,
+        );
+      }
+      fares = row.fares;
+    } else {
+      fares = rows.flatMap((r) => r.fares);
+    }
 
     if (fares.length === 0) {
       throw new Error(`No fare buckets found for flight ${flight.id} — selectors likely stale`);
