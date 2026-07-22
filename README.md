@@ -32,6 +32,18 @@ NOTIFY_EMAIL=you@example.com npm start
 
 Intended to be invoked periodically (e.g. once or twice a day).
 
+## Testing
+
+```
+npm test
+```
+
+Uses Node's built-in test runner (`node:test`) — no extra dependency. Covers
+the pure/testable logic: config validation, db queries (against an in-memory
+db), email formatting, the Southwest search URL builder, and the fare-label
+regex. Doesn't cover the scraper's actual page interaction or a real Gmail
+send — both need a live browser/API and are verified manually.
+
 ## Run with Docker
 
 The `Dockerfile` uses Microsoft's official Playwright image so the bundled

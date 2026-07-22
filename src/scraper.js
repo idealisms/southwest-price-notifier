@@ -23,7 +23,7 @@ function randomViewport() {
   };
 }
 
-function buildSearchUrl({ origin, destination, date }) {
+export function buildSearchUrl({ origin, destination, date }) {
   // Deep-linking pre-fills the booking form but does not auto-submit the
   // search — see checkFlightPrice, which still has to click "Search flights".
   const params = new URLSearchParams({
@@ -46,7 +46,7 @@ function buildSearchUrl({ origin, destination, date }) {
 // Fare buttons render an aria-label like "Choice fare 12,500 PTS. Additional
 // taxes and fees of dollars 5.60 will be added. ...". Unavailable fares don't
 // match this pattern, so they're naturally excluded.
-const FARE_LABEL_PATTERN = /^(.+?) fare ([\d,]+) PTS/;
+export const FARE_LABEL_PATTERN = /^(.+?) fare ([\d,]+) PTS/;
 
 /**
  * Checks the cheapest available points price for a single flight.

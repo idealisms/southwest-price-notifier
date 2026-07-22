@@ -5,10 +5,20 @@ import { sendEmail, formatPriceDropEmail, formatErrorEmail } from "./email.js";
 
 const NOTIFY_TO = process.env.NOTIFY_EMAIL;
 
+// Southwest doesn't sell already-departed flights, so scraping a past date
+// just burns a retry and a browser launch before failing — compare as
+// Pacific-local dates (where these flights actually depart) rather than
+// server-local/UTC "now", so a flight isn't skipped a day early/late purely
+// because of the server's timezone.
+export function isPastFlight(flight, now = new Date()) {
+  const todayPacific = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(now);
+  return flight.date < todayPacific;
+}
+
 // Flights sharing a `group` (e.g. the two legs of a round trip) are booked
 // and canceled together, so their combined cheapest fare — not each leg in
 // isolation — is what determines whether cancel-and-rebook is worth it.
-function groupFlights(flights) {
+export function groupFlights(flights) {
   const groups = new Map();
   for (const flight of flights) {
     const key = flight.group ?? flight.id;
@@ -28,7 +38,13 @@ async function main() {
     recordFlightPaidIfChanged(db, { flightId: flight.id, pointsPaid: flight.points_paid });
   }
 
-  for (const flight of flights) {
+  const pastFlights = flights.filter((f) => isPastFlight(f));
+  if (pastFlights.length > 0) {
+    console.log(`Skipping ${pastFlights.length} already-flown flight(s): ${pastFlights.map((f) => f.id).join(", ")}`);
+  }
+  const activeFlights = flights.filter((f) => !isPastFlight(f));
+
+  for (const flight of activeFlights) {
     let result;
     try {
       result = await checkFlightPrice(flight);
@@ -57,7 +73,7 @@ async function main() {
   }
 
   const drops = [];
-  for (const legs of groupFlights(flights)) {
+  for (const legs of groupFlights(activeFlights)) {
     if (legs.some((leg) => !results.has(leg.id))) {
       console.error(`Skipping group with missing leg data: ${legs.map((l) => l.id).join(", ")}`);
       continue;
@@ -102,18 +118,24 @@ async function main() {
   db.close();
 }
 
-main().catch(async (err) => {
-  console.error(err);
-  if (NOTIFY_TO) {
-    try {
-      await sendEmail({
-        to: NOTIFY_TO,
-        subject: "Southwest tracker error: run failed",
-        body: `The tracker crashed before finishing:\n\n${err.stack ?? err.message}`,
-      });
-    } catch (emailErr) {
-      console.error("Also failed to send crash alert email:", emailErr.message);
+// Guards against running the scraper just by importing this module (e.g.
+// from a test, or a REPL poking at isPastFlight/groupFlights) — main() only
+// fires when this file is executed directly, same as Python's `if __name__
+// == "__main__"`.
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch(async (err) => {
+    console.error(err);
+    if (NOTIFY_TO) {
+      try {
+        await sendEmail({
+          to: NOTIFY_TO,
+          subject: "Southwest tracker error: run failed",
+          body: `The tracker crashed before finishing:\n\n${err.stack ?? err.message}`,
+        });
+      } catch (emailErr) {
+        console.error("Also failed to send crash alert email:", emailErr.message);
+      }
     }
-  }
-  process.exit(1);
-});
+    process.exit(1);
+  });
+}

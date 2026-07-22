@@ -62,7 +62,7 @@ async function getAccessToken(token) {
   return access_token;
 }
 
-function buildRawMessage({ to, subject, body }) {
+export function buildRawMessage({ to, subject, body }) {
   const message = [`To: ${to}`, `Subject: ${subject}`, "Content-Type: text/plain; charset=UTF-8", "", body].join(
     "\n",
   );

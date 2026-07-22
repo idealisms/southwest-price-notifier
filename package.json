@@ -9,7 +9,8 @@
     "start": "node src/index.js",
     "login": "node src/login.js",
     "dashboard": "node src/server.js",
-    "record-config": "node src/record-config.js"
+    "record-config": "node src/record-config.js",
+    "test": "node --test"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",
