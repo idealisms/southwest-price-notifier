@@ -8,7 +8,8 @@
   "scripts": {
     "start": "node src/index.js",
     "login": "node src/login.js",
-    "dashboard": "node src/server.js"
+    "dashboard": "node src/server.js",
+    "record-config": "node src/record-config.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.3.0",

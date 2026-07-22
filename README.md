@@ -109,6 +109,17 @@ price-history chart, a raw check log, and — if a flight's `points_paid` in
 rebooked cheaper) — the points saved from each rebook, plus a total-saved
 banner across all flights.
 
+After editing `config/flights.json` (e.g. a rebook changed `points_paid`),
+run:
+
+```
+npm run record-config
+```
+
+to snapshot the new `points_paid` into the db immediately, so the
+dashboard's savings numbers update right away — without waiting for (or
+forcing) a full scrape run.
+
 ## Status
 
 Scraper and Gmail auth have both been verified against the live site/API,
