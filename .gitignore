@@ -11,6 +11,8 @@ config/flights.json
 # local data
 data/*.db
 data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 *.log
 
 # personal deployment details (hostnames/IPs, host paths)

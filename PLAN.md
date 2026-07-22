@@ -107,7 +107,8 @@ ATL -> DEN (Aug 15)
 
 ## Out of scope for v1 (future ideas)
 - Home Assistant notification integration
-- Price history charting / dashboard
+- Price history charting / dashboard — implemented as `src/server.js`, a
+  separate read-only web server (`npm run dashboard`); see its README section
 - Multi-user support
 - Automatic rebooking (manual click-through only, by design — avoid
   accidentally rebooking into a worse seat/fare like the Junova complaint)

@@ -1,5 +1,5 @@
 import { loadFlights } from "./config.js";
-import { openDb, recordPriceCheck } from "./db.js";
+import { openDb, recordPriceCheck, recordFlightPaidIfChanged } from "./db.js";
 import { checkFlightPrice } from "./scraper.js";
 import { sendEmail, formatPriceDropEmail, formatErrorEmail } from "./email.js";
 
@@ -23,6 +23,10 @@ async function main() {
   const db = openDb();
   const results = new Map(); // flight.id -> { cheapestPoints, fareBucket }
   const errors = [];
+
+  for (const flight of flights) {
+    recordFlightPaidIfChanged(db, { flightId: flight.id, pointsPaid: flight.points_paid });
+  }
 
   for (const flight of flights) {
     let result;

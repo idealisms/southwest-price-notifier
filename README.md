@@ -49,9 +49,10 @@ Build:
 docker build -t southwest-price-notifier .
 ```
 
-`config/`, `data/` (the sqlite price-history db), `storage-state.json`, and
-`token.json` all need to persist across container runs/restarts, so mount
-them from the host rather than baking them into the image:
+`config/`, `data/` (the sqlite price-history db), `storage-state.json`,
+`token.json`, and `src/` all need to persist or be editable across container
+runs/restarts, so mount them from the host rather than baking them into the
+image:
 
 ```
 docker run -d --restart unless-stopped \
@@ -59,6 +60,7 @@ docker run -d --restart unless-stopped \
   -v /path/to/repo/data:/app/data \
   -v /path/to/repo/storage-state.json:/app/storage-state.json \
   -v /path/to/repo/token.json:/app/token.json \
+  -v /path/to/repo/src:/app/src \
   -e NOTIFY_EMAIL=you@example.com \
   --name southwest-price-notifier-loop \
   --entrypoint /bin/sh \
@@ -66,15 +68,27 @@ docker run -d --restart unless-stopped \
   -c 'while true; do node src/index.js; sleep 43200; done'
 ```
 
-(`sleep 43200` = 12 hours; adjust to taste. `src/` and `node_modules` are
-baked into the image rather than mounted, so a code change requires a rebuild
-— see "Updating" below.)
+(`sleep 43200` = 12 hours; adjust to taste. `src/` is bind-mounted rather than
+baked into the image so scraper fixes don't need a rebuild — see "Updating"
+below. `node_modules` is still baked in, since it contains `better-sqlite3`'s
+architecture-specific compiled native module; only rebuild that when
+`package.json` changes.)
 
 ### Updating
 
-Since `src/` is baked into the image, picking up a code change (e.g. a
-scraper selector fix after Southwest tweaks their site) means rebuilding and
-restarting:
+`src/` is bind-mounted, so editing a file (e.g. a scraper selector fix after
+Southwest tweaks their site) or editing `config/flights.json` takes effect on
+its own — the container's loop shells out to a fresh `node src/index.js`
+every 12h, which re-reads both from disk. No rebuild or restart needed; the
+next loop iteration just picks it up. Restart the container if you want the
+change to take effect immediately instead of waiting for the next cycle:
+
+```
+docker restart southwest-price-notifier-loop
+```
+
+A `package.json`/dependency change is different — that's baked into
+`node_modules` at build time, so it still needs a rebuild:
 
 ```
 git pull
@@ -82,8 +96,18 @@ docker build -t southwest-price-notifier .
 docker restart southwest-price-notifier-loop
 ```
 
-No changes needed for `config/flights.json` edits — that's bind-mounted, so
-those take effect on the next container restart without a rebuild.
+## Dashboard
+
+```
+npm run dashboard
+```
+
+Starts a read-only web dashboard (default port `9786`, override with `PORT`)
+showing, per tracked flight: current cheapest price vs. what was paid, a
+price-history chart, a raw check log, and — if a flight's `points_paid` in
+`config/flights.json` has ever been lowered (i.e. it was canceled and
+rebooked cheaper) — the points saved from each rebook, plus a total-saved
+banner across all flights.
 
 ## Status
 
