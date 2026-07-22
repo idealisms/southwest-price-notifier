@@ -26,6 +26,9 @@ cancel-and-rebook is worth it.
 - Send mail using the gmail API. token.json will be provided from another project.
 - Local SQLite for tracked-flights config + price history (SQLite
   so we can make a history chart later)
+- `node:test` (built-in, no extra dependency) for config validation, db
+  queries, email formatting, and URL/regex helpers — `npm test`. Doesn't
+  cover actual page interaction or a real Gmail send; those stay manual.
 
 ## Config format (flights.json)
 ```json
@@ -69,6 +72,9 @@ cancel-and-rebook is worth it.
   leg. Omit `group` for flights booked and cancelable as standalone one-ways.
 
 ## Scraper logic
+0. Skip any flight whose date has already passed (Pacific time) before
+   scraping — Southwest doesn't sell past-dated flights, so scraping them
+   reliably timed out and could trigger error-alert emails indefinitely
 1. Launch stealth-patched Chromium, load persisted cookie/session state if present
 2. Deep-link to Southwest's one-way search with origin/destination/date and
    `fareType=POINTS` pre-filled (see "Resolved open questions" below), then
@@ -109,9 +115,12 @@ ATL -> DEN (Aug 15)
 - Home Assistant notification integration
 - Price history charting / dashboard — implemented as `src/server.js`, a
   separate read-only web server (`npm run dashboard`, also runnable as a
-  Home Assistant add-on — see `homeassistant-addon/README.md`); no rolling
-  chart window (charts all history) and no filtering of already-flown
-  flights (shown grayed out instead) yet
+  Home Assistant add-on — see `homeassistant-addon/README.md`), with a
+  dark-mode theme (`prefers-color-scheme`); no rolling chart window (charts
+  all history) and no filtering of already-flown flights from the dashboard
+  view (shown grayed out instead) yet. Already-flown flights *are* now
+  skipped by the scraper itself (see "Scraper logic" above) — the dashboard
+  just still displays their last-known data.
 - Multi-user support
 - Automatic rebooking (manual click-through only, by design — avoid
   accidentally rebooking into a worse seat/fare like the Junova complaint)
