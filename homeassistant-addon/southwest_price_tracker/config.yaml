@@ -1,0 +1,12 @@
+name: "Southwest Price Tracker"
+version: "1.0.0"
+slug: "southwest_price_tracker"
+description: "Points-price dashboard for tracked Southwest flights"
+arch:
+  - aarch64
+ingress: true
+ingress_port: 9786
+panel_icon: mdi:airplane-clock
+panel_title: "Price Tracker"
+map:
+  - share:rw
