@@ -53,12 +53,12 @@ function renderChart(checks, pointsPaid) {
 
   return `
     <svg class="chart" viewBox="0 0 ${CHART_WIDTH} ${CHART_HEIGHT}" role="img" aria-label="Price history chart">
-      <line x1="${CHART_PAD}" y1="${paidY}" x2="${CHART_WIDTH - CHART_PAD}" y2="${paidY}"
-            stroke="#999" stroke-dasharray="4 3" stroke-width="1" />
-      <text x="${CHART_WIDTH - CHART_PAD}" y="${paidY - 4}" text-anchor="end" font-size="10" fill="#999">paid: ${pointsPaid}</text>
-      <polyline points="${points}" fill="none" stroke="#2563eb" stroke-width="2" />
-      <text x="${CHART_PAD}" y="${CHART_PAD - 8}" font-size="10" fill="#666">${max}</text>
-      <text x="${CHART_PAD}" y="${CHART_HEIGHT - CHART_PAD + 12}" font-size="10" fill="#666">${min}</text>
+      <line class="chart-paid-line" x1="${CHART_PAD}" y1="${paidY}" x2="${CHART_WIDTH - CHART_PAD}" y2="${paidY}"
+            stroke-dasharray="4 3" stroke-width="1" />
+      <text class="chart-paid-label" x="${CHART_WIDTH - CHART_PAD}" y="${paidY - 4}" text-anchor="end" font-size="10">paid: ${pointsPaid}</text>
+      <polyline class="chart-line" points="${points}" fill="none" stroke-width="2" />
+      <text class="chart-axis-label" x="${CHART_PAD}" y="${CHART_PAD - 8}" font-size="10">${max}</text>
+      <text class="chart-axis-label" x="${CHART_PAD}" y="${CHART_HEIGHT - CHART_PAD + 12}" font-size="10">${min}</text>
     </svg>
   `;
 }
@@ -181,24 +181,57 @@ function renderPage(flights, db) {
 <meta http-equiv="refresh" content="${REFRESH_SECONDS}">
 <title>Southwest price tracker</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 1rem; background: #fafafa; color: #111; }
+  :root {
+    --bg: #fafafa;
+    --fg: #111;
+    --green: #16a34a;
+    --red: #dc2626;
+    --muted: #666;
+    --muted-strong: #444;
+    --card-bg: #fff;
+    --card-border: #ddd;
+    --badge-bg: #eee;
+    --table-border: #eee;
+    --chart-line: #2563eb;
+    --chart-grid: #999;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16181c;
+      --fg: #e6e6e6;
+      --green: #4ade80;
+      --red: #f87171;
+      --muted: #9a9a9a;
+      --muted-strong: #b5b5b5;
+      --card-bg: #1f2227;
+      --card-border: #333;
+      --badge-bg: #2a2d33;
+      --table-border: #2f3237;
+      --chart-line: #60a5fa;
+      --chart-grid: #777;
+    }
+  }
+  body { font-family: system-ui, sans-serif; margin: 1rem; background: var(--bg); color: var(--fg); }
   h1 { font-size: 1.2rem; }
-  .total-savings { font-size: 0.95rem; color: #16a34a; margin: -0.25rem 0 1rem; }
-  .rebook-summary { font-size: 0.85rem; color: #16a34a; margin: 0 0 0.5rem; }
-  section.flight { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+  .total-savings { font-size: 0.95rem; color: var(--green); margin: -0.25rem 0 1rem; }
+  .rebook-summary { font-size: 0.85rem; color: var(--green); margin: 0 0 0.5rem; }
+  section.flight { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
   section.flight.past { opacity: 0.6; }
   h2 { font-size: 1rem; margin: 0 0 0.5rem; }
-  .date { font-weight: normal; color: #666; font-size: 0.85rem; }
-  .past-badge { font-size: 0.75rem; background: #eee; color: #666; padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; }
+  .date { font-weight: normal; color: var(--muted); font-size: 0.85rem; }
+  .past-badge { font-size: 0.75rem; background: var(--badge-bg); color: var(--muted); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; }
   .indicator { display: inline-block; margin-bottom: 0.5rem; font-size: 0.9rem; }
-  .indicator.down { color: #16a34a; }
-  .indicator.up { color: #dc2626; }
-  .indicator.neutral { color: #666; }
+  .indicator.down { color: var(--green); }
+  .indicator.up { color: var(--red); }
+  .indicator.neutral { color: var(--muted); }
   .chart { width: 100%; max-width: ${CHART_WIDTH}px; height: auto; display: block; }
-  .empty { color: #666; font-style: italic; }
+  .chart-paid-line { stroke: var(--chart-grid); }
+  .chart-paid-label, .chart-axis-label { fill: var(--chart-grid); }
+  .chart-line { stroke: var(--chart-line); }
+  .empty { color: var(--muted); font-style: italic; }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
-  th, td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid #eee; }
-  details summary { cursor: pointer; font-size: 0.85rem; color: #444; }
+  th, td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid var(--table-border); }
+  details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted-strong); }
 </style>
 </head>
 <body>
