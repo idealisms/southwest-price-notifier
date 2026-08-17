@@ -75,7 +75,7 @@ export async function sendEmail({ to, subject, body }) {
   const raw = buildRawMessage({ to, subject, body });
   const payload = JSON.stringify({ raw });
 
-  await httpsRequestJson("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+  const sent = await httpsRequestJson("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -83,6 +83,22 @@ export async function sendEmail({ to, subject, body }) {
       "Content-Length": Buffer.byteLength(payload),
     },
     body: payload,
+  });
+
+  // `to` is a ponderer.org address that forwards right back to this same
+  // Gmail account. Gmail recognizes the forwarded copy as a message this
+  // account already sent and threads it into Sent/All Mail without ever
+  // applying the INBOX label, so it silently never shows up as new mail.
+  // Label it into the inbox ourselves rather than relying on the forward.
+  const labelPayload = JSON.stringify({ addLabelIds: ["INBOX", "UNREAD"] });
+  await httpsRequestJson(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${sent.id}/modify`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(labelPayload),
+    },
+    body: labelPayload,
   });
 }
 
