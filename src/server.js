@@ -83,14 +83,18 @@ function renderFlight(flight, checks, paidHistory) {
   const isPast = new Date(flight.date) < new Date();
 
   let indicator = `<span class="indicator neutral">no data yet</span>`;
+  let compactBadge = "no data";
   if (latest) {
     const drop = flight.points_paid - latest.cheapest_points;
     if (drop > 0) {
       indicator = `<span class="indicator down">▼ ${drop} pts cheaper (${latest.cheapest_points} vs ${flight.points_paid} paid)</span>`;
+      compactBadge = `${drop} pts cheaper`;
     } else if (drop < 0) {
       indicator = `<span class="indicator up">▲ ${-drop} pts pricier (${latest.cheapest_points} vs ${flight.points_paid} paid)</span>`;
+      compactBadge = `${-drop} pts pricier`;
     } else {
       indicator = `<span class="indicator neutral">unchanged (${latest.cheapest_points} pts)</span>`;
+      compactBadge = "unchanged";
     }
   }
 
@@ -135,12 +139,12 @@ function renderFlight(flight, checks, paidHistory) {
       </details>`
       : "";
 
-  return `
-    <section class="flight${isPast ? " past" : ""}">
-      <h2>${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}
-        <span class="date">${escapeHtml(flight.date)} ${escapeHtml(flight.flight_time ?? "")}</span>
-        ${isPast ? '<span class="past-badge">past</span>' : ""}
-      </h2>
+  // Rebooking savings are the more meaningful "amount saved" for a flight
+  // that's already flown, since the post-flight price-check indicator no
+  // longer reflects anything actionable.
+  if (isPast && totalSaved > 0) compactBadge = `saved ${totalSaved} pts`;
+
+  const body = `
       ${indicator}
       ${rebookSummary}
       ${renderChart(checks, flight.points_paid)}
@@ -152,6 +156,27 @@ function renderFlight(flight, checks, paidHistory) {
         </table>
       </details>
       ${rebookDetails}
+  `;
+
+  if (isPast) {
+    return `
+    <details class="flight past-card">
+      <summary>
+        <span class="flight-route">${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}</span>
+        <span class="date">${escapeHtml(flight.date)} ${escapeHtml(flight.flight_time ?? "")}</span>
+        <span class="saved-badge">${escapeHtml(compactBadge)}</span>
+      </summary>
+      <div class="past-card-body">${body}</div>
+    </details>
+    `;
+  }
+
+  return `
+    <section class="flight">
+      <h2>${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}
+        <span class="date">${escapeHtml(flight.date)} ${escapeHtml(flight.flight_time ?? "")}</span>
+      </h2>
+      ${body}
     </section>
   `;
 }
@@ -170,9 +195,25 @@ function renderPage(flights, db) {
       ? `<p class="total-savings">Total saved via rebooking across all flights: <strong>${totalSaved} pts</strong></p>`
       : "";
 
-  const sections = perFlight
+  const now = new Date();
+  const upcoming = perFlight.filter(({ flight }) => new Date(flight.date) >= now);
+  // Past flights sort most-recent-first — the ones you'd want to check
+  // "how'd that one go" on are the ones that just happened.
+  const past = perFlight
+    .filter(({ flight }) => new Date(flight.date) < now)
+    .sort((a, b) => new Date(b.flight.date) - new Date(a.flight.date));
+
+  const sections = upcoming
     .map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory))
     .join("\n");
+
+  const pastSections =
+    past.length > 0
+      ? `
+      <h2 class="past-heading">Past flights</h2>
+      ${past.map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory)).join("\n")}
+      `
+      : "";
 
   return `<!doctype html>
 <html>
@@ -216,10 +257,18 @@ function renderPage(flights, db) {
   .total-savings { font-size: 0.95rem; color: var(--green); margin: -0.25rem 0 1rem; }
   .rebook-summary { font-size: 0.85rem; color: var(--green); margin: 0 0 0.5rem; }
   section.flight { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
-  section.flight.past { opacity: 0.6; }
   h2 { font-size: 1rem; margin: 0 0 0.5rem; }
   .date { font-weight: normal; color: var(--muted); font-size: 0.85rem; }
-  .past-badge { font-size: 0.75rem; background: var(--badge-bg); color: var(--muted); padding: 0.1rem 0.4rem; border-radius: 4px; margin-left: 0.5rem; }
+  .past-heading { font-size: 0.95rem; color: var(--muted-strong); margin: 1.5rem 0 0.5rem; }
+  details.past-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 0.5rem; opacity: 0.75; }
+  details.past-card[open] { opacity: 1; padding-bottom: 1rem; }
+  details.past-card summary { display: flex; align-items: baseline; gap: 0.6rem; cursor: pointer; list-style: none; font-size: 0.9rem; }
+  details.past-card summary::-webkit-details-marker { display: none; }
+  details.past-card summary::before { content: "▸"; color: var(--muted); font-size: 0.75rem; }
+  details.past-card[open] summary::before { content: "▾"; }
+  details.past-card .flight-route { font-weight: 600; }
+  details.past-card .saved-badge { margin-left: auto; font-size: 0.8rem; color: var(--muted-strong); }
+  details.past-card .past-card-body { margin-top: 0.75rem; }
   .indicator { display: inline-block; margin-bottom: 0.5rem; font-size: 0.9rem; }
   .indicator.down { color: var(--green); }
   .indicator.up { color: var(--red); }
@@ -238,6 +287,7 @@ function renderPage(flights, db) {
 <h1>Southwest price tracker</h1>
 ${totalBanner}
 ${sections}
+${pastSections}
 </body>
 </html>`;
 }
