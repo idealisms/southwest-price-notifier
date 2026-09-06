@@ -7,10 +7,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "..", "data");
 const DB_PATH = path.join(DATA_DIR, "price-history.db");
 
-export function openDb() {
-  mkdirSync(DATA_DIR, { recursive: true });
-  const db = new Database(DB_PATH);
-  db.pragma("journal_mode = WAL");
+export function initSchema(db) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS price_checks (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,6 +25,13 @@ export function openDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_flight_paid_history_flight_id ON flight_paid_history(flight_id);
   `);
+}
+
+export function openDb() {
+  mkdirSync(DATA_DIR, { recursive: true });
+  const db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  initSchema(db);
   return db;
 }
 
@@ -42,7 +46,11 @@ export function openReadOnlyDb() {
 export function allPriceChecks(db, flightId) {
   return db
     .prepare(
-      `SELECT * FROM price_checks WHERE flight_id = ? ORDER BY checked_at ASC`,
+      // checked_at is only second-resolution (datetime('now')), so two
+      // checks recorded within the same second tie — id as a tiebreaker
+      // keeps insertion order well-defined instead of leaving ties to
+      // SQLite's unspecified default.
+      `SELECT * FROM price_checks WHERE flight_id = ? ORDER BY checked_at ASC, id ASC`,
     )
     .all(flightId);
 }
@@ -56,7 +64,7 @@ export function recordPriceCheck(db, { flightId, cheapestPoints, fareBucket }) {
 export function latestPriceCheck(db, flightId) {
   return db
     .prepare(
-      `SELECT * FROM price_checks WHERE flight_id = ? ORDER BY checked_at DESC LIMIT 1`,
+      `SELECT * FROM price_checks WHERE flight_id = ? ORDER BY checked_at DESC, id DESC LIMIT 1`,
     )
     .get(flightId);
 }

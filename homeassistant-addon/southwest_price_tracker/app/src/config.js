@@ -14,14 +14,14 @@ const REQUIRED_FIELDS = [
   "notify_threshold_points",
 ];
 
-export function loadFlights() {
+export function loadFlights(flightsPath = FLIGHTS_PATH) {
   let raw;
   try {
-    raw = readFileSync(FLIGHTS_PATH, "utf-8");
+    raw = readFileSync(flightsPath, "utf-8");
   } catch (err) {
     if (err.code === "ENOENT") {
       throw new Error(
-        `Missing ${FLIGHTS_PATH}. Copy config/flights.example.json to config/flights.json and fill in your tracked flights.`,
+        `Missing ${flightsPath}. Copy config/flights.example.json to config/flights.json and fill in your tracked flights.`,
       );
     }
     throw err;
