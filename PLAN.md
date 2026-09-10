@@ -70,6 +70,16 @@ cancel-and-rebook is worth it.
   be identical across all legs in the group — it's the combined cost of the
   whole booking, not a per-leg amount). One alert fires per group, not per
   leg. Omit `group` for flights booked and cancelable as standalone one-ways.
+- `flight_time` (optional): the booked departure time (e.g. `"11:50 AM"`,
+  matching Southwest's own display format), used to scope fare-scraping to
+  the one row for that departure. Without it, the cheapest fare across all
+  departure times that day is tracked instead of one specific flight.
+- `via` (optional, only meaningful with `flight_time`): the connecting
+  airport code (e.g. `"DEN"`), needed when two itineraries depart at the
+  same time via different connections — these are otherwise
+  indistinguishable by time alone and can silently price-track the wrong
+  (unbooked) itinerary. The scraper throws instead of guessing when
+  multiple same-time itineraries are found and no `via` is set.
 
 ## Scraper logic
 0. Skip any flight whose date has already passed (Pacific time) before

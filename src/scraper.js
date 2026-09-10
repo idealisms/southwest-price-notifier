@@ -49,6 +49,39 @@ export function buildSearchUrl({ origin, destination, date }) {
 export const FARE_LABEL_PATTERN = /^(.+?) fare ([\d,]+) PTS/;
 
 /**
+ * Two itineraries can depart at the exact same time via different
+ * connecting cities (e.g. one flight_time, one via DEN, one via AUS, at
+ * different prices) — picking the first match silently tracks the wrong
+ * one. Given rows that already match on flight_time, narrow to the single
+ * intended itinerary using flight.via (a connecting-airport code expected
+ * to appear in the row's text), or throw with enough detail to add one.
+ */
+export function disambiguateByVia(rows, flight) {
+  if (rows.length === 1) return rows[0];
+
+  if (!flight.via) {
+    throw new Error(
+      `Multiple flights depart at ${flight.flight_time} for ${flight.id} (${rows.length} candidates) — ` +
+        `add a "via" connecting-airport field to flights.json to disambiguate.`,
+    );
+  }
+
+  const viaPattern = new RegExp(`\\b${flight.via}\\b`);
+  const matched = rows.filter((r) => viaPattern.test(r.text));
+  if (matched.length === 0) {
+    throw new Error(
+      `No flight via ${flight.via} found among ${rows.length} candidates departing ${flight.flight_time} for ${flight.id}.`,
+    );
+  }
+  if (matched.length > 1) {
+    throw new Error(
+      `"via": "${flight.via}" still matches ${matched.length} flights departing ${flight.flight_time} for ${flight.id} — need a more specific disambiguator.`,
+    );
+  }
+  return matched[0];
+}
+
+/**
  * Checks the cheapest available points price for a single flight.
  * Returns { cheapestPoints, fareBucket } or throws on scrape failure.
  */
@@ -83,13 +116,16 @@ export async function checkFlightPrice(flight) {
 
     // Each departure has its own row with its own fare buttons, so fares must
     // be scoped per-row — grabbing all buttons on the page mixes fares from
-    // unrelated flight times together.
+    // unrelated flight times together. `text` (the full row's normalized
+    // text) is kept alongside for disambiguateByVia — two itineraries can
+    // depart at the exact same time via different connecting cities.
     const rows = await page.$$eval(
       "li.air-booking-select-detail",
       (nodes, patternSrc) => {
         const pattern = new RegExp(patternSrc);
         return nodes.map((row) => {
-          const timeMatch = (row.textContent || "").match(/Departs\s*(\d{1,2}:\d{2})\s*(AM|PM)/i);
+          const text = (row.textContent || "").replace(/\s+/g, " ").trim();
+          const timeMatch = text.match(/Departs\s*(\d{1,2}:\d{2})\s*(AM|PM)/i);
           const time = timeMatch ? `${timeMatch[1]} ${timeMatch[2].toUpperCase()}` : null;
           const fares = Array.from(row.querySelectorAll("button[aria-label*=' PTS.']"))
             .map((el) => {
@@ -98,7 +134,7 @@ export async function checkFlightPrice(flight) {
               return { bucket: match[1], points: parseInt(match[2].replace(/,/g, ""), 10) };
             })
             .filter(Boolean);
-          return { time, fares };
+          return { time, text, fares };
         });
       },
       FARE_LABEL_PATTERN.source,
@@ -106,14 +142,14 @@ export async function checkFlightPrice(flight) {
 
     let fares;
     if (flight.flight_time) {
-      const row = rows.find((r) => r.time === flight.flight_time);
-      if (!row) {
+      const matchingRows = rows.filter((r) => r.time === flight.flight_time);
+      if (matchingRows.length === 0) {
         const available = rows.map((r) => r.time).join(", ");
         throw new Error(
           `No flight departing at ${flight.flight_time} found for ${flight.id} (available: ${available})`,
         );
       }
-      fares = row.fares;
+      fares = disambiguateByVia(matchingRows, flight).fares;
     } else {
       fares = rows.flatMap((r) => r.fares);
     }
