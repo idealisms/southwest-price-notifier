@@ -29,8 +29,19 @@ describe("FARE_LABEL_PATTERN", () => {
 });
 
 describe("disambiguateByVia", () => {
-  const denRow = { time: "11:50 AM", text: "Departs 11:50 AM 1 stop DEN", fares: [{ bucket: "Choice", points: 18500 }] };
-  const ausRow = { time: "11:50 AM", text: "Departs 11:50 AM 1 stop AUS", fares: [{ bucket: "Choice", points: 15500 }] };
+  // Real row text (via a live scrape) glues the connecting airport directly
+  // to the duration that follows, with no separator — e.g. "DEN8h 25m" —
+  // which is why disambiguateByVia can't rely on a trailing \b.
+  const denRow = {
+    time: "11:50 AM",
+    text: "Departs 11:50AMArrives 5:15PM1 stop Opens flyout.Change planes DEN8h 25m18,500 Points",
+    fares: [{ bucket: "Choice", points: 18500 }],
+  };
+  const ausRow = {
+    time: "11:50 AM",
+    text: "Departs 11:50AMArrives 6:55PM1 stop Opens flyout.Change planes AUS10h 5m15,500 Points",
+    fares: [{ bucket: "Choice", points: 15500 }],
+  };
 
   test("returns the only row unchanged when there's no ambiguity", () => {
     assert.equal(disambiguateByVia([denRow], { id: "x", flight_time: "11:50 AM" }), denRow);
@@ -55,9 +66,12 @@ describe("disambiguateByVia", () => {
     );
   });
 
-  test("doesn't false-positive on a via that's a substring of another code", () => {
-    // AUS shouldn't match a row that only contains e.g. "MAUS" or "AUSTIN-ish" text
-    const weirdRow = { time: "11:50 AM", text: "Departs 11:50 AM 1 stop TAUS", fares: [] };
+  test("doesn't false-positive on a via that's a prefix of another code", () => {
+    const weirdRow = {
+      time: "11:50 AM",
+      text: "Departs 11:50AMArrives 6:55PM1 stop Opens flyout.Change planes AUSX10h 5m15,500 Points",
+      fares: [],
+    };
     assert.throws(
       () => disambiguateByVia([denRow, weirdRow], { id: "atl-oak-1201", flight_time: "11:50 AM", via: "AUS" }),
       /No flight via AUS/,

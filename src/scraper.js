@@ -66,7 +66,12 @@ export function disambiguateByVia(rows, flight) {
     );
   }
 
-  const viaPattern = new RegExp(`\\b${flight.via}\\b`);
+  // The connecting airport appears in the row as "Change planes DEN6h 55m…"
+  // — glued directly to the duration that follows with no separator, so a
+  // trailing \b (word boundary) never fires between the code's last letter
+  // and that digit. Anchor on the "Change planes " prefix instead, with a
+  // lookahead ruling out a longer code that happens to start the same way.
+  const viaPattern = new RegExp(`Change planes ${flight.via}(?![A-Za-z])`);
   const matched = rows.filter((r) => viaPattern.test(r.text));
   if (matched.length === 0) {
     throw new Error(
