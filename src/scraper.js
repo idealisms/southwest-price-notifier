@@ -55,6 +55,10 @@ export const FARE_LABEL_PATTERN = /^(.+?) fare ([\d,]+) PTS/;
  * one. Given rows that already match on flight_time, narrow to the single
  * intended itinerary using flight.via (a connecting-airport code expected
  * to appear in the row's text), or throw with enough detail to add one.
+ *
+ * A booked itinerary can also be nonstop — set "via": "nonstop" (any case)
+ * for that, which matches a row's "Nonstop" text instead of a connecting
+ * airport.
  */
 export function disambiguateByVia(rows, flight) {
   if (rows.length === 1) return rows[0];
@@ -62,7 +66,7 @@ export function disambiguateByVia(rows, flight) {
   if (!flight.via) {
     throw new Error(
       `Multiple flights depart at ${flight.flight_time} for ${flight.id} (${rows.length} candidates) — ` +
-        `add a "via" connecting-airport field to flights.json to disambiguate.`,
+        `add a "via" connecting-airport field to flights.json to disambiguate (use "nonstop" if it doesn't connect).`,
     );
   }
 
@@ -71,7 +75,12 @@ export function disambiguateByVia(rows, flight) {
   // trailing \b (word boundary) never fires between the code's last letter
   // and that digit. Anchor on the "Change planes " prefix instead, with a
   // lookahead ruling out a longer code that happens to start the same way.
-  const viaPattern = new RegExp(`Change planes ${flight.via}(?![A-Za-z])`);
+  // A nonstop itinerary has no connecting airport at all, so it's matched
+  // on the row's "Nonstop" text instead.
+  const viaPattern =
+    flight.via.toLowerCase() === "nonstop"
+      ? /Nonstop/
+      : new RegExp(`Change planes ${flight.via}(?![A-Za-z])`);
   const matched = rows.filter((r) => viaPattern.test(r.text));
   if (matched.length === 0) {
     throw new Error(

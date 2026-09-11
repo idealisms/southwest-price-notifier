@@ -77,4 +77,20 @@ describe("disambiguateByVia", () => {
       /No flight via AUS/,
     );
   });
+
+  test('"nonstop" picks the row with no connecting airport', () => {
+    const nonstopRow = {
+      time: "10:15 AM",
+      text: "Departs 10:15AMArrives 11:45AMNonstop7,000 Points",
+      fares: [{ bucket: "Wanna Get Away", points: 7000 }],
+    };
+    assert.equal(
+      disambiguateByVia([denRow, nonstopRow], { id: "oak-sna-0912", flight_time: "10:15 AM", via: "nonstop" }),
+      nonstopRow,
+    );
+    assert.equal(
+      disambiguateByVia([denRow, nonstopRow], { id: "oak-sna-0912", flight_time: "10:15 AM", via: "Nonstop" }),
+      nonstopRow,
+    );
+  });
 });
