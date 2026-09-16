@@ -7,12 +7,37 @@ const NOTIFY_TO = process.env.NOTIFY_EMAIL;
 
 // Southwest doesn't sell already-departed flights, so scraping a past date
 // just burns a retry and a browser launch before failing — compare as
-// Pacific-local dates (where these flights actually depart) rather than
+// Pacific-local date/time (where these flights actually depart) rather than
 // server-local/UTC "now", so a flight isn't skipped a day early/late purely
-// because of the server's timezone.
+// because of the server's timezone. Comparing only the date (not the time)
+// let a same-day flight look "active" for hours after it had already
+// departed, since the calendar date doesn't roll over until midnight — so
+// once flight_time is known, compare the full departure timestamp instead.
 export function isPastFlight(flight, now = new Date()) {
-  const todayPacific = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles" }).format(now);
-  return flight.date < todayPacific;
+  const nowPacific = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Los_Angeles",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  })
+    .formatToParts(now)
+    .reduce((acc, { type, value }) => ({ ...acc, [type]: value }), {});
+  const todayPacific = `${nowPacific.year}-${nowPacific.month}-${nowPacific.day}`;
+
+  if (flight.date !== todayPacific) return flight.date < todayPacific;
+  if (!flight.flight_time) return false;
+
+  const match = flight.flight_time.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return false;
+  let [, hour, minute, meridiem] = match;
+  hour = Number(hour) % 12;
+  if (meridiem.toUpperCase() === "PM") hour += 12;
+  const flightMinutes = hour * 60 + Number(minute);
+  const nowMinutes = Number(nowPacific.hour) * 60 + Number(nowPacific.minute);
+  return nowMinutes >= flightMinutes;
 }
 
 // Flights sharing a `group` (e.g. the two legs of a round trip) are booked

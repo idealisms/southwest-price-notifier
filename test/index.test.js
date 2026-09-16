@@ -24,6 +24,25 @@ describe("isPastFlight", () => {
     const earlyUTC = new Date("2026-07-22T05:00:00Z");
     assert.equal(isPastFlight({ date: "2026-07-21" }, earlyUTC), false);
   });
+
+  test("a same-day flight is past once its flight_time has passed", () => {
+    // noon2026_07_22_UTC is 2026-07-22 05:00 Pacific (PDT, UTC-7).
+    assert.equal(
+      isPastFlight({ date: "2026-07-22", flight_time: "2:25 AM" }, noon2026_07_22_UTC),
+      true,
+    );
+  });
+
+  test("a same-day flight is not past before its flight_time", () => {
+    assert.equal(
+      isPastFlight({ date: "2026-07-22", flight_time: "11:45 AM" }, noon2026_07_22_UTC),
+      false,
+    );
+  });
+
+  test("a same-day flight without flight_time is not past until the date rolls over", () => {
+    assert.equal(isPastFlight({ date: "2026-07-22" }, noon2026_07_22_UTC), false);
+  });
 });
 
 describe("groupFlights", () => {
