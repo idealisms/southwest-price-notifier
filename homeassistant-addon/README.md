@@ -56,8 +56,10 @@ directories relative to `src/`'s own location, same as in the main app) read
 the exact same `flights.json` and `price-history.db` the loop container
 writes — no data duplication, no path-override code needed.
 
-The mount is read-write, not `:ro`, even though the add-on's own SQLite
-connection is opened `{ readonly: true }` and never writes: SQLite's WAL
+The mount is read-write, not `:ro`. The dashboard's "I rebooked" button
+writes to it, rewriting `config/flights.json` and adding a
+`flight_paid_history` row. But even a read-only dashboard would need a
+writable mount: SQLite's WAL
 mode needs to create/open `-shm`/`-wal` sidecar files even for plain reads,
 which requires write access to the containing directory. A `:ro` mount
 throws `SQLITE_CANTOPEN` on the first query (hit and fixed live on the

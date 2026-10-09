@@ -1,5 +1,5 @@
 name: "Southwest Price Tracker"
-version: "1.0.0"
+version: "1.2.0"
 slug: "southwest_price_tracker"
 description: "Points-price dashboard for tracked Southwest flights"
 arch:

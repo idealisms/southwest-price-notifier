@@ -1,9 +1,17 @@
 import http from "node:http";
-import { loadFlights } from "./config.js";
-import { openReadOnlyDb, allPriceChecks, flightPaidHistory } from "./db.js";
+import { loadFlights, updatePointsPaid } from "./config.js";
+import {
+  openDb,
+  openReadOnlyDb,
+  allPriceChecks,
+  flightPaidHistory,
+  recordFlightPaidIfChanged,
+  deleteFlightPaidHistoryRows,
+} from "./db.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 9786;
 const REFRESH_SECONDS = 300;
+const MAX_BODY_BYTES = 10_000;
 
 const CHART_WIDTH = 640;
 const CHART_HEIGHT = 180;
@@ -78,17 +86,28 @@ function rebookSavings(paidHistory) {
   return { totalSaved, rebooks };
 }
 
-function renderFlight(flight, checks, paidHistory) {
+function renderFlight(flight, checks, paidHistory, basePath, undo) {
   const latest = checks.length > 0 ? checks[checks.length - 1] : null;
   const isPast = new Date(flight.date) < new Date();
 
   let indicator = `<span class="indicator neutral">no data yet</span>`;
+  let rebookForm = "";
   let compactBadge = "no data";
   if (latest) {
     const drop = flight.points_paid - latest.cheapest_points;
     if (drop > 0) {
       indicator = `<span class="indicator down">▼ ${drop} pts cheaper (${latest.cheapest_points} vs ${flight.points_paid} paid)</span>`;
       compactBadge = `${drop} pts cheaper`;
+      // Prefilled with the latest scraped price, but editable since the
+      // fare actually booked may differ from what the last check saw.
+      if (!isPast && !flight.group) {
+        rebookForm = `
+      <form class="rebook-form" method="post" action="${escapeHtml(basePath)}/rebook">
+        <input type="hidden" name="flight_id" value="${escapeHtml(flight.id)}">
+        <label>Rebooked at <input type="number" name="points_paid" value="${latest.cheapest_points}" min="1" step="1" required> pts</label>
+        <button type="submit">I rebooked</button>
+      </form>`;
+      }
     } else if (drop < 0) {
       indicator = `<span class="indicator up">▲ ${-drop} pts pricier (${latest.cheapest_points} vs ${flight.points_paid} paid)</span>`;
       compactBadge = `${-drop} pts pricier`;
@@ -111,6 +130,21 @@ function renderFlight(flight, checks, paidHistory) {
       </tr>`,
     )
     .join("");
+
+  // Shown only on the page load right after a rebook (see handleRebook's
+  // redirect); the meta refresh and any manual reload drop it.
+  const undoForm =
+    undo?.flightId === flight.id
+      ? `
+      <form class="undo-form" method="post" action="${escapeHtml(basePath)}/undo-rebook">
+        <input type="hidden" name="flight_id" value="${escapeHtml(flight.id)}">
+        <input type="hidden" name="previous" value="${undo.previous}">
+        <input type="hidden" name="rebooked" value="${flight.points_paid}">
+        <input type="hidden" name="rows" value="${escapeHtml(undo.rows.join(","))}">
+        <span>Updated points paid from ${undo.previous} to ${flight.points_paid}.</span>
+        <button type="submit">Undo</button>
+      </form>`
+      : "";
 
   const { totalSaved, rebooks } = rebookSavings(paidHistory);
   const rebookSummary =
@@ -145,7 +179,9 @@ function renderFlight(flight, checks, paidHistory) {
   if (isPast && totalSaved > 0) compactBadge = `saved ${totalSaved} pts`;
 
   const body = `
+      ${undoForm}
       ${indicator}
+      ${rebookForm}
       ${rebookSummary}
       ${renderChart(checks, flight.points_paid)}
       <details>
@@ -181,7 +217,7 @@ function renderFlight(flight, checks, paidHistory) {
   `;
 }
 
-function renderPage(flights, db) {
+function renderPage(flights, db, basePath, undo) {
   const sorted = flights.slice().sort((a, b) => new Date(a.date) - new Date(b.date));
   const perFlight = sorted.map((flight) => ({
     flight,
@@ -204,14 +240,14 @@ function renderPage(flights, db) {
     .sort((a, b) => new Date(b.flight.date) - new Date(a.flight.date));
 
   const sections = upcoming
-    .map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory))
+    .map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory, basePath, undo))
     .join("\n");
 
   const pastSections =
     past.length > 0
       ? `
       <h2 class="past-heading">Past flights</h2>
-      ${past.map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory)).join("\n")}
+      ${past.map(({ flight, checks, paidHistory }) => renderFlight(flight, checks, paidHistory, basePath, undo)).join("\n")}
       `
       : "";
 
@@ -219,7 +255,7 @@ function renderPage(flights, db) {
 <html>
 <head>
 <meta charset="utf-8">
-<meta http-equiv="refresh" content="${REFRESH_SECONDS}">
+<meta http-equiv="refresh" content="${REFRESH_SECONDS}; url=${escapeHtml(basePath)}/">
 <title>Southwest price tracker</title>
 <style>
   :root {
@@ -269,6 +305,11 @@ function renderPage(flights, db) {
   details.past-card .flight-route { font-weight: 600; }
   details.past-card .saved-badge { margin-left: auto; font-size: 0.8rem; color: var(--muted-strong); }
   details.past-card .past-card-body { margin-top: 0.75rem; }
+  .rebook-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; font-size: 0.85rem; }
+  .rebook-form input[type="number"] { width: 6rem; font: inherit; padding: 0.2rem 0.3rem; background: var(--bg); color: var(--fg); border: 1px solid var(--card-border); border-radius: 4px; }
+  .rebook-form button { font: inherit; padding: 0.25rem 0.75rem; border-radius: 4px; border: 1px solid var(--green); background: var(--green); color: #fff; cursor: pointer; }
+  .undo-form { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0 0 0.5rem; padding: 0.4rem 0.6rem; font-size: 0.85rem; background: var(--badge-bg); border-radius: 4px; }
+  .undo-form button { font: inherit; padding: 0.2rem 0.75rem; border-radius: 4px; border: 1px solid var(--card-border); background: var(--card-bg); color: var(--fg); cursor: pointer; }
   .indicator { display: inline-block; margin-bottom: 0.5rem; font-size: 0.9rem; }
   .indicator.down { color: var(--green); }
   .indicator.up { color: var(--red); }
@@ -282,6 +323,11 @@ function renderPage(flights, db) {
   th, td { text-align: left; padding: 0.2rem 0.5rem; border-bottom: 1px solid var(--table-border); }
   details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted-strong); }
 </style>
+<script>
+  // Drop the one-time undo params from the address bar so a reload shows
+  // the plain dashboard rather than the undo button again.
+  if (location.search) history.replaceState(null, "", location.pathname);
+</script>
 </head>
 <body>
 <h1>Southwest price tracker</h1>
@@ -292,26 +338,174 @@ ${pastSections}
 </html>`;
 }
 
-function requestHandler(req, res) {
-  if (req.method !== "GET" || req.url !== "/") {
-    res.writeHead(404, { "Content-Type": "text/plain" });
-    res.end("Not found");
+// Under HA ingress the page is served from /api/hassio_ingress/<token>/ while
+// req.url arrives with that prefix stripped, so links and redirects need the
+// prefix put back. Running standalone, the header is absent and paths are
+// root-relative.
+function basePathFor(req) {
+  return (req.headers["x-ingress-path"] ?? "").replace(/\/+$/, "");
+}
+
+function sendText(res, status, message) {
+  res.writeHead(status, { "Content-Type": "text/plain; charset=utf-8" });
+  res.end(message);
+}
+
+function undoFromQuery(params) {
+  const flightId = params.get("undo");
+  const previous = Number(params.get("previous"));
+  if (!flightId || !Number.isInteger(previous)) return null;
+  const rows = (params.get("rows") ?? "").split(",").filter(Boolean).map(Number);
+  return { flightId, previous, rows };
+}
+
+function handleDashboard(req, res, params) {
+  let db;
+  try {
+    const flights = loadFlights();
+    db = openReadOnlyDb();
+    const html = renderPage(flights, db, basePathFor(req), undoFromQuery(params));
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(html);
+  } catch (err) {
+    console.error(err);
+    sendText(res, 500, "Internal error — see server logs");
+  } finally {
+    db?.close();
+  }
+}
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.setEncoding("utf-8");
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > MAX_BODY_BYTES) {
+        reject(new Error("Request body too large"));
+        req.destroy();
+      }
+    });
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
+
+async function handleRebook(req, res) {
+  let form;
+  try {
+    form = new URLSearchParams(await readBody(req));
+  } catch (err) {
+    sendText(res, 400, err.message);
+    return;
+  }
+
+  const flightId = form.get("flight_id") ?? "";
+  const pointsPaid = Number(form.get("points_paid"));
+  if (!Number.isInteger(pointsPaid) || pointsPaid <= 0) {
+    sendText(res, 400, "points_paid must be a positive whole number");
+    return;
+  }
+
+  let db;
+  let previous;
+  let rows;
+  try {
+    const flight = loadFlights().find((f) => f.id === flightId);
+    if (!flight) {
+      sendText(res, 404, `No flight with id "${flightId}"`);
+      return;
+    }
+    if (new Date(flight.date) < new Date()) {
+      sendText(res, 400, `Flight "${flightId}" has already departed`);
+      return;
+    }
+
+    ({ previous } = updatePointsPaid(flightId, pointsPaid));
+    console.log(`Rebooked ${flightId}: points_paid ${previous} -> ${pointsPaid}`);
+
+    // Record both endpoints right away so the savings history shows this
+    // rebook now instead of after the loop's next run. Recording the old
+    // price first covers a flight the loop hasn't snapshotted yet; it's a
+    // no-op otherwise.
+    db = openDb();
+    rows = [
+      recordFlightPaidIfChanged(db, { flightId, pointsPaid: previous }),
+      recordFlightPaidIfChanged(db, { flightId, pointsPaid }),
+    ].filter((id) => id !== null);
+  } catch (err) {
+    console.error(err);
+    sendText(res, 500, `Failed to update ${flightId}: ${err.message}`);
+    return;
+  } finally {
+    db?.close();
+  }
+
+  // Redirect after POST so a page refresh (including the meta refresh)
+  // doesn't resubmit the form. The query carries what the undo button needs.
+  const undo = new URLSearchParams({ undo: flightId, previous: String(previous), rows: rows.join(",") });
+  res.writeHead(303, { Location: `${basePathFor(req)}/?${undo}` });
+  res.end();
+}
+
+async function handleUndoRebook(req, res) {
+  let form;
+  try {
+    form = new URLSearchParams(await readBody(req));
+  } catch (err) {
+    sendText(res, 400, err.message);
+    return;
+  }
+
+  const flightId = form.get("flight_id") ?? "";
+  const previous = Number(form.get("previous"));
+  const rebooked = Number(form.get("rebooked"));
+  const rows = (form.get("rows") ?? "").split(",").filter(Boolean).map(Number);
+  if (![previous, rebooked, ...rows].every((n) => Number.isInteger(n) && n > 0)) {
+    sendText(res, 400, "Malformed undo request");
     return;
   }
 
   let db;
   try {
-    const flights = loadFlights();
-    db = openReadOnlyDb();
-    const html = renderPage(flights, db);
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(html);
+    const flight = loadFlights().find((f) => f.id === flightId);
+    if (!flight) {
+      sendText(res, 404, `No flight with id "${flightId}"`);
+      return;
+    }
+    // Guards against a stale undo (e.g. a second tab, or flights.json edited
+    // since) clobbering a newer points_paid.
+    if (flight.points_paid !== rebooked) {
+      sendText(res, 409, `Not undone: ${flightId} is now at ${flight.points_paid} pts paid, not ${rebooked}`);
+      return;
+    }
+
+    updatePointsPaid(flightId, previous);
+    db = openDb();
+    deleteFlightPaidHistoryRows(db, flightId, rows);
+    console.log(`Undid rebook of ${flightId}: points_paid ${rebooked} -> ${previous}`);
   } catch (err) {
     console.error(err);
-    res.writeHead(500, { "Content-Type": "text/plain" });
-    res.end("Internal error — see server logs");
+    sendText(res, 500, `Failed to undo ${flightId}: ${err.message}`);
+    return;
   } finally {
     db?.close();
+  }
+
+  res.writeHead(303, { Location: `${basePathFor(req)}/` });
+  res.end();
+}
+
+function requestHandler(req, res) {
+  const { pathname, searchParams } = new URL(req.url, "http://localhost");
+  if (req.method === "GET" && pathname === "/") {
+    handleDashboard(req, res, searchParams);
+  } else if (req.method === "POST" && pathname === "/rebook") {
+    handleRebook(req, res);
+  } else if (req.method === "POST" && pathname === "/undo-rebook") {
+    handleUndoRebook(req, res);
+  } else {
+    sendText(res, 404, "Not found");
   }
 }
 

@@ -35,10 +35,11 @@ export function openDb() {
   return db;
 }
 
-// Separate from openDb() because the dashboard only ever reads: no table
-// creation (the loop container owns schema setup) and no write access, so a
-// stale/missing db file surfaces as a clear error rather than silently
-// creating an empty one.
+// Separate from openDb() because rendering the dashboard only ever reads: no
+// table creation (the loop container owns schema setup) and no write access,
+// so a stale/missing db file surfaces as a clear error rather than silently
+// creating an empty one. (The dashboard's rebook button is the one place it
+// writes, and it uses openDb().)
 export function openReadOnlyDb() {
   return new Database(DB_PATH, { readonly: true, fileMustExist: true });
 }
@@ -72,17 +73,28 @@ export function latestPriceCheck(db, flightId) {
 // Cancel-and-rebook changes points_paid in flights.json in place (same
 // flight_id, since it's still the same physical segment), which otherwise
 // leaves no record of what was paid before — call once per flight per run
-// so the dashboard can show rebooking savings over time.
+// so the dashboard can show rebooking savings over time. Returns the new
+// row's id, or null if nothing was inserted, so the dashboard's undo can
+// remove exactly the rows a rebook added.
 export function recordFlightPaidIfChanged(db, { flightId, pointsPaid }) {
   const latest = db
     .prepare(
       `SELECT * FROM flight_paid_history WHERE flight_id = ? ORDER BY id DESC LIMIT 1`,
     )
     .get(flightId);
-  if (latest && latest.points_paid === pointsPaid) return;
-  db.prepare(
-    `INSERT INTO flight_paid_history (flight_id, points_paid) VALUES (?, ?)`,
-  ).run(flightId, pointsPaid);
+  if (latest && latest.points_paid === pointsPaid) return null;
+  const { lastInsertRowid } = db
+    .prepare(`INSERT INTO flight_paid_history (flight_id, points_paid) VALUES (?, ?)`)
+    .run(flightId, pointsPaid);
+  return Number(lastInsertRowid);
+}
+
+// Undoing a rebook can't just record the old price again: the savings calc
+// would see that as a drop followed by an increase and still count the
+// drop. Deleting the rows the rebook added makes it as if it never happened.
+export function deleteFlightPaidHistoryRows(db, flightId, ids) {
+  const del = db.prepare(`DELETE FROM flight_paid_history WHERE flight_id = ? AND id = ?`);
+  for (const id of ids) del.run(flightId, id);
 }
 
 export function flightPaidHistory(db, flightId) {

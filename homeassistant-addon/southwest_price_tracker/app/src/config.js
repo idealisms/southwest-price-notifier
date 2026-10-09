@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, renameSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
@@ -57,4 +57,26 @@ export function loadFlights(flightsPath = FLIGHTS_PATH) {
   }
 
   return flights;
+}
+
+// Backs the dashboard's "I rebooked" button. Writes to a temp file and
+// renames it over flights.json so the loop container never reads a
+// half-written file mid-scrape. The rename is safe across the Docker setup
+// because it's the config/ directory that's bind-mounted, not flights.json
+// itself.
+export function updatePointsPaid(flightId, pointsPaid, flightsPath = FLIGHTS_PATH) {
+  const flights = loadFlights(flightsPath);
+  const flight = flights.find((f) => f.id === flightId);
+  if (!flight) throw new Error(`No flight with id "${flightId}"`);
+  // A grouped flight's points_paid is the combined total for every leg, so
+  // a per-leg rebook can't be expressed here without also knowing the other
+  // legs' new prices.
+  if (flight.group) throw new Error(`Flight "${flightId}" is in group "${flight.group}"; edit flights.json by hand`);
+
+  const previous = flight.points_paid;
+  flight.points_paid = pointsPaid;
+  const tmpPath = `${flightsPath}.tmp`;
+  writeFileSync(tmpPath, JSON.stringify(flights, null, 2) + "\n");
+  renameSync(tmpPath, flightsPath);
+  return { previous };
 }

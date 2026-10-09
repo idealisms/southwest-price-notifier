@@ -114,15 +114,23 @@ docker restart southwest-price-notifier-loop
 npm run dashboard
 ```
 
-Starts a read-only web dashboard (default port `9786`, override with `PORT`)
+Starts a web dashboard (default port `9786`, override with `PORT`)
 showing, per tracked flight: current cheapest price vs. what was paid, a
 price-history chart, a raw check log, and — if a flight's `points_paid` in
 `config/flights.json` has ever been lowered (i.e. it was canceled and
 rebooked cheaper) — the points saved from each rebook, plus a total-saved
 banner across all flights.
 
-After editing `config/flights.json` (e.g. a rebook changed `points_paid`),
-run:
+When an upcoming flight's latest price is below what was paid, its card
+shows an **I rebooked** button with the new price filled in (you can edit
+it). Submitting rewrites that flight's `points_paid` in
+`config/flights.json` and records the change in the db, so the savings
+history updates immediately. Right after a rebook, that card shows an
+**Undo** button that restores the old price and removes the history rows
+the rebook added; it goes away on the next reload. Grouped flights don't get the button, since
+their `points_paid` is a combined total for all legs.
+
+After editing `config/flights.json` by hand, run:
 
 ```
 npm run record-config

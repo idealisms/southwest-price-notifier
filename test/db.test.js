@@ -8,6 +8,7 @@ import {
   latestPriceCheck,
   recordFlightPaidIfChanged,
   flightPaidHistory,
+  deleteFlightPaidHistoryRows,
 } from "../src/db.js";
 
 let db;
@@ -68,5 +69,19 @@ describe("flight_paid_history", () => {
     assert.equal(history.length, 2);
     assert.equal(history[0].points_paid, 9000);
     assert.equal(history[1].points_paid, 7500);
+  });
+});
+
+describe("deleteFlightPaidHistoryRows", () => {
+  test("removes only the given rows for the given flight", () => {
+    const first = recordFlightPaidIfChanged(db, { flightId: "oak-pdx", pointsPaid: 9000 });
+    const second = recordFlightPaidIfChanged(db, { flightId: "oak-pdx", pointsPaid: 7500 });
+    const other = recordFlightPaidIfChanged(db, { flightId: "pdx-oak", pointsPaid: 7500 });
+    assert.equal(recordFlightPaidIfChanged(db, { flightId: "oak-pdx", pointsPaid: 7500 }), null);
+
+    deleteFlightPaidHistoryRows(db, "oak-pdx", [second, other]);
+
+    assert.deepEqual(flightPaidHistory(db, "oak-pdx").map((r) => r.id), [first]);
+    assert.equal(flightPaidHistory(db, "pdx-oak").length, 1);
   });
 });

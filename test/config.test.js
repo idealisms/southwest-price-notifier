@@ -1,9 +1,9 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadFlights } from "../src/config.js";
+import { loadFlights, updatePointsPaid } from "../src/config.js";
 
 function writeFlights(flights) {
   const dir = mkdtempSync(path.join(tmpdir(), "flights-test-"));
@@ -98,6 +98,50 @@ describe("loadFlights", () => {
     try {
       const flights = loadFlights(file);
       assert.equal(flights.length, 3);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+});
+
+describe("updatePointsPaid", () => {
+  const base = { origin: "ATL", destination: "OAK", date: "2026-12-01", notify_threshold_points: 500 };
+
+  test("rewrites only the target flight's points_paid and returns the old value", () => {
+    const { dir, file } = writeFlights([
+      { ...base, id: "atl-oak", via: "DEN", points_paid: 18500 },
+      { ...base, id: "oak-atl", origin: "OAK", destination: "ATL", points_paid: 17000 },
+    ]);
+    try {
+      const { previous } = updatePointsPaid("atl-oak", 17500, file);
+      assert.equal(previous, 18500);
+      const flights = JSON.parse(readFileSync(file, "utf-8"));
+      assert.deepEqual(flights[0], { ...base, id: "atl-oak", via: "DEN", points_paid: 17500 });
+      assert.equal(flights[1].points_paid, 17000);
+      assert.equal(existsSync(`${file}.tmp`), false);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  test("throws for an unknown flight id without touching the file", () => {
+    const { dir, file } = writeFlights([{ ...base, id: "atl-oak", points_paid: 18500 }]);
+    try {
+      const before = readFileSync(file, "utf-8");
+      assert.throws(() => updatePointsPaid("nope", 1000, file), /No flight with id "nope"/);
+      assert.equal(readFileSync(file, "utf-8"), before);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
+  });
+
+  test("refuses grouped flights", () => {
+    const { dir, file } = writeFlights([
+      { ...base, id: "a", group: "rt", points_paid: 30000 },
+      { ...base, id: "b", group: "rt", points_paid: 30000 },
+    ]);
+    try {
+      assert.throws(() => updatePointsPaid("a", 25000, file), /is in group "rt"/);
     } finally {
       rmSync(dir, { recursive: true });
     }
