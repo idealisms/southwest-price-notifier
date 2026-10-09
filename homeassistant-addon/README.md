@@ -80,7 +80,9 @@ indirection). After editing anything here:
    which `scp` can't do mid-transfer), then `sudo cp -r` it into
    `/addons/southwest_price_tracker` and remove the staged copy
 3. In the HA UI: Settings → Add-ons → Add-on Store → ⋮ → Check for
-   updates/Reload, then rebuild/restart the add-on from its page
+   updates/Reload. If `config.yaml`'s `version` was bumped, the add-on page
+   offers **Update**; otherwise use **Rebuild**. The dashboard header shows
+   the running version, so you can confirm the new build is live.
 
 There's no Supervisor API token available from the SSH add-on's session
 (confirmed 2026-07-21), so the reload/rebuild/restart itself has to happen

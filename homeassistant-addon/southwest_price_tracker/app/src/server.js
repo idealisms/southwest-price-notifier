@@ -12,6 +12,10 @@ import {
 const PORT = process.env.PORT ? Number(process.env.PORT) : 9786;
 const REFRESH_SECONDS = 300;
 const MAX_BODY_BYTES = 10_000;
+// Set by the HA add-on's Dockerfile from Supervisor's BUILD_VERSION build
+// arg, so the page shows which add-on build is actually running. Unset when
+// run standalone.
+const APP_VERSION = process.env.APP_VERSION;
 
 const CHART_WIDTH = 640;
 const CHART_HEIGHT = 180;
@@ -290,6 +294,7 @@ function renderPage(flights, db, basePath, undo) {
   }
   body { font-family: system-ui, sans-serif; margin: 1rem; background: var(--bg); color: var(--fg); }
   h1 { font-size: 1.2rem; }
+  h1 .version { font-size: 0.75rem; font-weight: normal; color: var(--muted); }
   .total-savings { font-size: 0.95rem; color: var(--green); margin: -0.25rem 0 1rem; }
   .rebook-summary { font-size: 0.85rem; color: var(--green); margin: 0 0 0.5rem; }
   section.flight { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
@@ -330,7 +335,7 @@ function renderPage(flights, db, basePath, undo) {
 </script>
 </head>
 <body>
-<h1>Southwest price tracker</h1>
+<h1>Southwest price tracker${APP_VERSION ? ` <span class="version">v${escapeHtml(APP_VERSION)}</span>` : ""}</h1>
 ${totalBanner}
 ${sections}
 ${pastSections}

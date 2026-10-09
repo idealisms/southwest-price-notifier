@@ -22,6 +22,11 @@ COPY app/src ./src
 RUN ln -s /share/southwest-price-notifier/config /app/config \
     && ln -s /share/southwest-price-notifier/data /app/data
 
+# Supervisor passes config.yaml's version as the BUILD_VERSION build arg;
+# the dashboard shows it in the header to confirm an update took effect.
+ARG BUILD_VERSION
+ENV APP_VERSION=$BUILD_VERSION
+
 # Must match config.yaml's ingress_port.
 ENV PORT=9786
 CMD ["node", "src/server.js"]
