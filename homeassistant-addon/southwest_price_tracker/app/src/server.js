@@ -90,6 +90,15 @@ function rebookSavings(paidHistory) {
   return { totalSaved, rebooks };
 }
 
+// "via" is either a connecting airport code or the "nonstop" sentinel (see
+// scraper.js); both are shown so same-time flights can be told apart.
+function routeLabel(flight) {
+  const route = `${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}`;
+  if (!flight.via) return route;
+  const via = flight.via.toLowerCase() === "nonstop" ? "nonstop" : `via ${escapeHtml(flight.via.toUpperCase())}`;
+  return `${route} <span class="via">${via}</span>`;
+}
+
 function renderFlight(flight, checks, paidHistory, basePath, undo) {
   const latest = checks.length > 0 ? checks[checks.length - 1] : null;
   const isPast = new Date(flight.date) < new Date();
@@ -202,7 +211,7 @@ function renderFlight(flight, checks, paidHistory, basePath, undo) {
     return `
     <details class="flight past-card">
       <summary>
-        <span class="flight-route">${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}</span>
+        <span class="flight-route">${routeLabel(flight)}</span>
         <span class="date">${escapeHtml(flight.date)} ${escapeHtml(flight.flight_time ?? "")}</span>
         <span class="saved-badge">${escapeHtml(compactBadge)}</span>
       </summary>
@@ -213,7 +222,7 @@ function renderFlight(flight, checks, paidHistory, basePath, undo) {
 
   return `
     <section class="flight">
-      <h2>${escapeHtml(flight.origin)} → ${escapeHtml(flight.destination)}
+      <h2>${routeLabel(flight)}
         <span class="date">${escapeHtml(flight.date)} ${escapeHtml(flight.flight_time ?? "")}</span>
       </h2>
       ${body}
@@ -299,6 +308,7 @@ function renderPage(flights, db, basePath, undo) {
   .rebook-summary { font-size: 0.85rem; color: var(--green); margin: 0 0 0.5rem; }
   section.flight { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
   h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+  .via { font-weight: normal; }
   .date { font-weight: normal; color: var(--muted); font-size: 0.85rem; }
   .past-heading { font-size: 0.95rem; color: var(--muted-strong); margin: 1.5rem 0 0.5rem; }
   details.past-card { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 0.6rem 1rem; margin-bottom: 0.5rem; opacity: 0.75; }
