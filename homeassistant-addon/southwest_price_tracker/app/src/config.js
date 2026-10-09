@@ -3,7 +3,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const FLIGHTS_PATH = path.join(__dirname, "..", "config", "flights.json");
+// Overridable so scripts/demo-dashboard.js can point a server at a scratch
+// copy instead of the real config.
+const FLIGHTS_PATH = process.env.FLIGHTS_PATH ?? path.join(__dirname, "..", "config", "flights.json");
 
 const REQUIRED_FIELDS = [
   "id",

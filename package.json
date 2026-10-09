@@ -9,6 +9,7 @@
     "start": "node src/index.js",
     "login": "node src/login.js",
     "dashboard": "node src/server.js",
+    "demo": "node scripts/demo-dashboard.js",
     "record-config": "node src/record-config.js",
     "test": "node --test"
   },

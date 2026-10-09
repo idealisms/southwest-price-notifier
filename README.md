@@ -130,6 +130,20 @@ history updates immediately. Right after a rebook, that card shows an
 the rebook added; it goes away on the next reload. Grouped flights don't get the button, since
 their `points_paid` is a combined total for all legs.
 
+To try the dashboard (including the rebook button) without touching real
+data:
+
+```
+npm run demo                                   # snapshot local config/ + data/
+npm run demo -- --from-pi hassio@<pi-address>  # snapshot the Pi's live data
+npm run demo -- --drop atl-oak-1201=16000      # pick the fake drops yourself
+```
+
+This copies `flights.json` and the price-history db to a temp directory,
+adds fake price checks (by default 1000 pts below `points_paid` on every
+upcoming flight), and serves the dashboard from that copy on port `9799`
+(`--port` to change it). The copy is deleted when you stop the server.
+
 After editing `config/flights.json` by hand, run:
 
 ```

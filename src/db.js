@@ -4,7 +4,8 @@ import path from "node:path";
 import { mkdirSync } from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = path.join(__dirname, "..", "data");
+// Overridable for the same reason as FLIGHTS_PATH in config.js.
+const DATA_DIR = process.env.DATA_DIR ?? path.join(__dirname, "..", "data");
 const DB_PATH = path.join(DATA_DIR, "price-history.db");
 
 export function initSchema(db) {

@@ -335,7 +335,7 @@ function renderPage(flights, db, basePath, undo) {
 </script>
 </head>
 <body>
-<h1>Southwest price tracker${APP_VERSION ? ` <span class="version">v${escapeHtml(APP_VERSION)}</span>` : ""}</h1>
+<h1>Southwest price tracker${APP_VERSION ? ` <span class="version">${/^\d/.test(APP_VERSION) ? "v" : ""}${escapeHtml(APP_VERSION)}</span>` : ""}</h1>
 ${totalBanner}
 ${sections}
 ${pastSections}
